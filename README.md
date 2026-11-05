@@ -96,11 +96,27 @@ python -m tools.backtest_observe --days 1 --hours 4
 |---|---|
 | 免费实例会休眠 | Render 免费 Web Service 在约 15 分钟无入站请求后休眠，休眠期间**扫描和持仓监控会停止**。需要 7×24 自动交易，请把 `render.yaml` 里的 `plan: free` 改为 `starter`（约 $7/月），或在控制台升级实例 |
 | 币安区域限制 | Render 美国区域访问 Binance 可能返回 HTTP 451。`render.yaml` 默认选择 `frankfurt`；如仍受限可尝试 `singapore` |
-| 共享 IP 限频 | Binance 可能对 Render 共享出口 IP 返回 HTTP 418/429。代码已内置请求节流（`BINANCE_MIN_INTERVAL`）和封禁退避；如持续 418，建议换 region 或配置 `SCANNER_PROXY` |
+| 共享 IP 限频 | 实测 Render Frankfurt/Singapore 的共享出口 IP 会被 Binance 直接返回 HTTP 418（`IP ... banned`），公共行情和签名接口都会失败。代码已内置请求节流（`BINANCE_MIN_INTERVAL`）和封禁退避，但**无法绕过 IP 封禁**；需要配置干净的 `SCANNER_PROXY` 或改用 VPS |
 | 磁盘不持久 | 免费实例的 `data/` 是临时目录，重新部署/重启后参数、持仓状态和信号日志会清空。重要参数请记录，或用数据库/持久磁盘（付费） |
 | 密钥安全 | `.env` 已被 `.gitignore` 排除；Render 上只通过 Environment 注入密钥，不要提交到 Git |
 | API 白名单 | 如果币安 API Key 绑定了 IP 白名单，Render 出口 IP 不固定，需要关闭白名单或改用固定出口 IP 的部署方式 |
 | Dashboard 认证 | 公网部署务必保留 `DASHBOARD_USER` / `DASHBOARD_PASSWORD`；未设置时 Dashboard 和 API 完全公开，任何人可改参数或平仓 |
+
+> **2026-11-05 实测**：Render Frankfurt 的共享出口 IP（`74.220.51.162`）被 Binance 封禁，`/api/diag/binance` 返回：
+>
+> ```json
+> {"ok": false, "status": 418, "retry_after": "32087",
+>  "body": "{\"code\":-1003,\"msg\":\"Way too many requests; IP(74.220.51.162) banned until ...\"}"}
+> ```
+>
+> 这意味着 **Render 的共享 IP 不适合直接访问 Binance**。服务本身、Dashboard、认证和健康检查都正常，但扫描/交易会因 418 失败。可选方案：
+>
+> 1. 在 Render Environment 添加干净的 HTTP 代理：`SCANNER_PROXY=http://user:pass@host:port`（同时可用于 Telegram：`TG_PROXY`），然后重启服务。
+> 2. 改用新加坡/香港/日本等地的 VPS 直接运行（不经过 Render 出口 IP）。
+> 3. 使用 Render 专用出口 IP（Dedicated IPs，约 $100/月）——成本较高，不推荐。
+> 4. 等待 `Retry-After` 到期（本次约 9 小时）；但共享 IP 可能再次被封，不能保证稳定。
+>
+> 诊断接口：`GET /api/diag/binance`（需 Dashboard Basic Auth），返回 Binance 的 HTTP 状态和 `Retry-After`。
 
 **手动创建 Web Service（不使用 Blueprint）**
 
@@ -124,7 +140,7 @@ DASHBOARD_USER=admin
 DASHBOARD_PASSWORD=设置一个强密码
 ```
 
-`SCANNER_PROXY` / `TG_PROXY` 在 Render 上**留空**（不要设置成 `http://127.0.0.1:...`）。程序会自动读取 Render 注入的 `PORT` 并监听 `0.0.0.0`。
+`SCANNER_PROXY` / `TG_PROXY` 默认**留空**（不要设置成 `http://127.0.0.1:...`）。如果 Render 出口 IP 被 Binance 418，必须把 `SCANNER_PROXY` 设置为干净的 HTTP 代理。程序会自动读取 Render 注入的 `PORT` 并监听 `0.0.0.0`。
 
 > 默认 `TRADE_ENABLED=False`，只报警不下单。确认运行正常后，在 Dashboard 的「参数」页开启自动交易。
 
