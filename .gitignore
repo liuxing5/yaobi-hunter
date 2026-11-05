@@ -1,0 +1,33 @@
+# 密钥
+.env
+
+# 运行时数据
+data/
+test/data/
+*.parquet
+
+# 日志
+yaobi_hunter.log
+*.log
+
+# 测试/基准缓存
+.pytest_cache/
+.benchmarks/
+.coverage
+htmlcov/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
