@@ -198,6 +198,11 @@ class YaoBiScanner:
         self._scan_sem = asyncio.Semaphore(max(1, int(os.getenv("SCAN_CONCURRENCY", "3"))))
         self._load_state()
 
+    def binance_status(self) -> dict:
+        """给 Dashboard 的 Binance 可达性摘要（不触发额外请求）。"""
+        remain = int(max(0, self.client._banned_until - time.time()))
+        return {"ok": remain == 0, "retry_after": remain}
+
     async def _analyze_limited(self, symbol: str):
         async with self._scan_sem:
             return await self._analyze(symbol)

@@ -79,6 +79,7 @@ def create_app(config, scanner, trader):
             "account":       acct,
             "trade_enabled": config.TRADE_ENABLED,
             "cooldown_count":len(scanner.cooldown),
+            "binance":       scanner.binance_status(),
         })
 
     async def handle_signals(req):

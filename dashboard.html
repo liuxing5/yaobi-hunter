@@ -194,11 +194,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
   <div class="nav-i" onclick="switchView('positions',this)">💼 当前持仓</div>
   <div class="nav-s">配置</div>
   <div class="nav-i" onclick="switchView('params',this)">⚙️ 参数调整</div>
-  <div class="sidebar-footer" id="sbFooter">API: localhost:8765<br>刷新: --</div>
+  <div class="sidebar-footer" id="sbFooter">API: --<br>刷新: --</div>
 </div>
 
 <!-- MAIN -->
 <div class="main-area">
+  <div id="sysBanner" style="display:none;margin:8px 14px 0;padding:8px 12px;border:1px solid #7a3030;background:#2a1616;color:#ff9a9a;font-size:12px;border-radius:4px;line-height:1.5;"></div>
 
   <!-- 信号 -->
   <div class="view active" id="view-signals">
@@ -251,7 +252,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 <div id="toast"><div class="tt" id="tTitle"></div><div class="tb" id="tBody"></div></div>
 
 <script>
-const API = `${window.location.protocol}//${window.location.hostname}:8765`;
+// 同源 API：本地是 http://host:8765，Render 是 https://xxx.onrender.com。
+// 不能再硬编码 :8765，否则 Render 页面会去请求不存在的 8765 端口。
+const API = window.location.origin;
 let allSignals=[], selIdx=-1, sigFilter='all', paramsSchema={};
 let obsSignals=[], obsFilter='all', obsFiltered=[];
 let sigFiltered=[];
@@ -349,8 +352,22 @@ async function fetchStatus(){
     if(d.trade_enabled){tb.textContent='自动下单';tb.className='badge badge-on';}
     else{tb.textContent='只报警';tb.className='badge badge-off';}
     renderPositions(d.positions);
-    document.getElementById('sbFooter').innerHTML=`API: ${location.hostname}:8765<br>刷新: ${new Date().toLocaleTimeString('zh-CN')}`;
-  }catch(e){}
+    const banner=document.getElementById('sysBanner');
+    if(d.binance && d.binance.ok === false){
+      const mins=Math.ceil((d.binance.retry_after||0)/60);
+      banner.style.display='block';
+      banner.textContent=`⚠️ Binance 拒绝请求（IP 封禁/限频），扫描暂停，约 ${mins} 分钟后重试。请配置 SCANNER_PROXY 或更换出口 IP。`;
+    }else{
+      banner.style.display='none';
+    }
+    document.getElementById('sbFooter').innerHTML=`API: ${location.host}<br>刷新: ${new Date().toLocaleTimeString('zh-CN')}`;
+  }catch(e){
+    const banner=document.getElementById('sysBanner');
+    if(banner){
+      banner.style.display='block';
+      banner.textContent='⚠️ 无法连接后端 API：'+(e && e.message ? e.message : e);
+    }
+  }
 }
 
 async function fetchSignals(){
