@@ -1,5 +1,5 @@
 """HTTP API v3 - Dashboard后端"""
-import base64, hmac, json, logging, os, glob
+import aiohttp, base64, hmac, json, logging, os, glob
 from aiohttp import web
 from pathlib import Path
 from config import PARAM_SCHEMA
@@ -54,6 +54,22 @@ def create_app(config, scanner, trader):
 
     async def handle_health(req):
         return _json({"ok": True, "service": "yaobi-hunter"})
+
+    async def handle_binance_diag(req):
+        """不带 API Key 探测 Binance 可达性，用于区分 IP 封禁与密钥问题。"""
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as s:
+                async with s.get("https://fapi.binance.com/fapi/v1/time") as r:
+                    body = (await r.text())[:300]
+                    return _json({
+                        "ok": r.status == 200,
+                        "status": r.status,
+                        "retry_after": r.headers.get("Retry-After"),
+                        "body": body,
+                    })
+        except Exception as e:
+            return _json({"ok": False, "error": str(e)}, 502)
 
     async def handle_status(req):
         acct = await trader.get_account_summary()
@@ -157,6 +173,7 @@ def create_app(config, scanner, trader):
     app.router.add_get ("/",                         handle_dashboard)
     app.router.add_get ("/dashboard.html",           handle_dashboard)
     app.router.add_get ("/health",                   handle_health)
+    app.router.add_get ("/api/diag/binance",         handle_binance_diag)
     app.router.add_get ("/api/status",               handle_status)
     app.router.add_get ("/api/signals",                  handle_signals)
     app.router.add_get ("/api/observe_signals",          handle_observe_signals)
