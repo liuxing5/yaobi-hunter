@@ -1,5 +1,7 @@
-# 密钥
+# 密钥 / 部署凭据
 .env
+.render_api_key
+.render_credentials
 
 # 运行时数据
 data/
