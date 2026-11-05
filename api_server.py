@@ -77,6 +77,7 @@ def create_app(config, scanner, trader):
             "scan_total":    scanner.total_signals,
             "positions":     trader.get_positions_summary(),
             "account":       acct,
+            "account_ok":    acct.get("ok", True),
             "trade_enabled": config.TRADE_ENABLED,
             "cooldown_count":len(scanner.cooldown),
             "binance":       scanner.binance_status(),

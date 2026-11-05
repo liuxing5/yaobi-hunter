@@ -1066,6 +1066,7 @@ class Trader:
         try:
             data = await self.client.get_signed("/fapi/v2/account")
             result = {
+                "ok":         True,
                 "wallet":     float(data.get("totalWalletBalance", 0)),
                 "unrealized": float(data.get("totalUnrealizedProfit", 0)),
                 "margin":     float(data.get("totalInitialMargin", 0)),
@@ -1086,7 +1087,8 @@ class Trader:
                 result["daily_realized"] = 0.0
             return result
         except Exception:
-            return {"wallet": 0, "unrealized": 0, "margin": 0, "daily_realized": 0}
+            # 不要伪装成“余额 0”：标记失败，Dashboard 显示 -- 而不是 0.00
+            return {"ok": False, "wallet": 0, "unrealized": 0, "margin": 0, "daily_realized": 0}
 
     def get_positions_summary(self) -> list[dict]:
         return [

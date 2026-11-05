@@ -334,20 +334,27 @@ async function fetchStatus(){
     const d=await(await fetch(`${API}/api/status`)).json();
     document.getElementById('tPos').textContent=d.positions.length;
     document.getElementById('sbCooldown').textContent=d.cooldown_count+'个';
-    const a=d.account;
-    document.getElementById('tWallet').textContent=parseFloat(a.wallet).toFixed(2);
-    document.getElementById('sbWallet').textContent=parseFloat(a.wallet).toFixed(2)+' U';
-    document.getElementById('sbMargin').textContent=parseFloat(a.margin).toFixed(2)+' U';
-    const pnl=parseFloat(a.unrealized);
-    document.getElementById('tPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(2)+' U';
-    document.getElementById('tPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
-    document.getElementById('sbPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(2)+' U';
-    document.getElementById('sbPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
-    const dr=parseFloat(a.daily_realized||0);
-    document.getElementById('tDailyPnl').textContent=(dr>=0?'+':'')+dr.toFixed(2)+' U';
-    document.getElementById('tDailyPnl').style.color=dr>=0?'var(--green)':'var(--red)';
-    document.getElementById('sbDailyPnl').textContent=(dr>=0?'+':'')+dr.toFixed(2)+' U';
-    document.getElementById('sbDailyPnl').style.color=dr>=0?'var(--green)':'var(--red)';
+    const a=d.account||{};
+    if(d.account_ok === false){
+      ['tWallet','sbWallet','tPnl','sbPnl','sbMargin','tDailyPnl','sbDailyPnl'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el){el.textContent='--';el.style.color='var(--muted)';}
+      });
+    }else{
+      document.getElementById('tWallet').textContent=parseFloat(a.wallet).toFixed(2);
+      document.getElementById('sbWallet').textContent=parseFloat(a.wallet).toFixed(2)+' U';
+      document.getElementById('sbMargin').textContent=parseFloat(a.margin).toFixed(2)+' U';
+      const pnl=parseFloat(a.unrealized);
+      document.getElementById('tPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(2)+' U';
+      document.getElementById('tPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
+      document.getElementById('sbPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(2)+' U';
+      document.getElementById('sbPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
+      const dr=parseFloat(a.daily_realized||0);
+      document.getElementById('tDailyPnl').textContent=(dr>=0?'+':'')+dr.toFixed(2)+' U';
+      document.getElementById('tDailyPnl').style.color=dr>=0?'var(--green)':'var(--red)';
+      document.getElementById('sbDailyPnl').textContent=(dr>=0?'+':'')+dr.toFixed(2)+' U';
+      document.getElementById('sbDailyPnl').style.color=dr>=0?'var(--green)':'var(--red)';
+    }
     const tb=document.getElementById('tradeBadge');
     if(d.trade_enabled){tb.textContent='自动下单';tb.className='badge badge-on';}
     else{tb.textContent='只报警';tb.className='badge badge-off';}
@@ -356,7 +363,7 @@ async function fetchStatus(){
     if(d.binance && d.binance.ok === false){
       const mins=Math.ceil((d.binance.retry_after||0)/60);
       banner.style.display='block';
-      banner.textContent=`⚠️ Binance 拒绝请求（IP 封禁/限频），扫描暂停，约 ${mins} 分钟后重试。请配置 SCANNER_PROXY 或更换出口 IP。`;
+      banner.textContent=`⚠️ Binance 拒绝请求（IP 封禁/限频），账户与扫描数据不可用，约 ${mins} 分钟后重试。请配置 SCANNER_PROXY 或更换出口 IP。`;
     }else{
       banner.style.display='none';
     }
