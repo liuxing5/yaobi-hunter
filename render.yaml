@@ -3,7 +3,7 @@ services:
     name: yaobi-hunter
     runtime: python
     plan: free
-    region: singapore
+    region: frankfurt
     branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
@@ -24,3 +24,8 @@ services:
         value: admin
       - key: DASHBOARD_PASSWORD
         generateValue: true
+      # Binance 请求节流：降低 Render 共享出口 IP 被 418/429 限频的概率
+      - key: BINANCE_MIN_INTERVAL
+        value: "0.1"
+      - key: SCAN_CONCURRENCY
+        value: "3"

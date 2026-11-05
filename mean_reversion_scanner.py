@@ -36,7 +36,7 @@ class MeanReversionScanner:
         try:
             symbols = await self._get_symbols()
         except Exception as e:
-            logger.error(f"failed to fetch symbols: {repr(e)}", exc_info=True)
+            logger.error(f"failed to fetch symbols: {e}", exc_info=True)
             return []
 
         results = await asyncio.gather(

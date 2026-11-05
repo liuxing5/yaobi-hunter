@@ -95,7 +95,8 @@ python -m tools.backtest_observe --days 1 --hours 4
 | 事项 | 说明 |
 |---|---|
 | 免费实例会休眠 | Render 免费 Web Service 在约 15 分钟无入站请求后休眠，休眠期间**扫描和持仓监控会停止**。需要 7×24 自动交易，请把 `render.yaml` 里的 `plan: free` 改为 `starter`（约 $7/月），或在控制台升级实例 |
-| 币安区域限制 | Render 美国区域访问 Binance 可能返回 HTTP 451。`render.yaml` 默认选择 `singapore`；如仍受限，可改为 `frankfurt` |
+| 币安区域限制 | Render 美国区域访问 Binance 可能返回 HTTP 451。`render.yaml` 默认选择 `frankfurt`；如仍受限可尝试 `singapore` |
+| 共享 IP 限频 | Binance 可能对 Render 共享出口 IP 返回 HTTP 418/429。代码已内置请求节流（`BINANCE_MIN_INTERVAL`）和封禁退避；如持续 418，建议换 region 或配置 `SCANNER_PROXY` |
 | 磁盘不持久 | 免费实例的 `data/` 是临时目录，重新部署/重启后参数、持仓状态和信号日志会清空。重要参数请记录，或用数据库/持久磁盘（付费） |
 | 密钥安全 | `.env` 已被 `.gitignore` 排除；Render 上只通过 Environment 注入密钥，不要提交到 Git |
 | API 白名单 | 如果币安 API Key 绑定了 IP 白名单，Render 出口 IP 不固定，需要关闭白名单或改用固定出口 IP 的部署方式 |
@@ -109,7 +110,7 @@ python -m tools.backtest_observe --days 1 --hours 4
 | Build Command | `pip install -r requirements.txt` |
 | Start Command | `python main.py` |
 | Health Check Path | `/health` |
-| Region | Singapore（或 Frankfurt） |
+| Region | Frankfurt（或 Singapore） |
 
 然后在 **Environment** 中添加：
 

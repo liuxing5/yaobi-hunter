@@ -28,6 +28,33 @@ class BinanceClient:
         self._session: Optional[aiohttp.ClientSession] = None
         self._tick_cache: dict[str, float] = {}
         self._step_cache: dict[str, float] = {}
+        # 全局请求节流：默认每 80ms 最多发出一个请求，避免 Render 共享 IP
+        # 在扫描 200 个币种时瞬间打满 Binance 权重而被 418 封禁。
+        self._min_interval = max(0.0, float(os.getenv("BINANCE_MIN_INTERVAL", "0.08")))
+        self._rate_lock = asyncio.Lock()
+        self._last_request = 0.0
+        self._banned_until = 0.0
+
+    async def _throttle(self):
+        if time.time() < self._banned_until:
+            left = int(self._banned_until - time.time())
+            raise RuntimeError(f"Binance IP 封禁中，暂停请求，剩余约 {left}s")
+        async with self._rate_lock:
+            wait = self._min_interval - (time.monotonic() - self._last_request)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self._last_request = time.monotonic()
+
+    def _check_ban_response(self, r):
+        if r.status in (418, 429):
+            retry = r.headers.get("Retry-After", "60")
+            try:
+                retry_s = max(60, int(float(retry)))
+            except (TypeError, ValueError):
+                retry_s = 60
+            self._banned_until = time.time() + retry_s
+            logger.error(f"Binance 限频/封禁: HTTP {r.status}, Retry-After={retry_s}s，暂停请求")
+            raise RuntimeError(f"Binance HTTP {r.status}, retry after {retry_s}s")
 
     async def load_exchange_info(self):
         try:
@@ -70,23 +97,28 @@ class BinanceClient:
         return self._session
 
     async def get(self, path: str, params: dict = None, base: str = None):
+        await self._throttle()
         s = await self._sess()
         url = (base or self.FAPI) + path
         async with s.get(url, params=params, proxy=self.proxy) as r:
+            self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
 
     async def post_signed(self, path: str, params: dict):
+        await self._throttle()
         params["timestamp"] = int(time.time() * 1000)
         qs = urlencode(params)
         sig = hmac.new(self.secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
         qs += f"&signature={sig}"
         s = await self._sess()
         async with s.post(self.FAPI + path + "?" + qs, proxy=self.proxy) as r:
+            self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
 
     async def delete_signed(self, path: str, params: dict):
+        await self._throttle()
         params = params or {}
         params["timestamp"] = int(time.time() * 1000)
         qs = urlencode(params)
@@ -94,10 +126,12 @@ class BinanceClient:
         qs += f"&signature={sig}"
         s = await self._sess()
         async with s.delete(self.FAPI + path + "?" + qs, proxy=self.proxy) as r:
+            self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
 
     async def get_signed(self, path: str, params: dict = None):
+        await self._throttle()
         params = params or {}
         params["timestamp"] = int(time.time() * 1000)
         qs = urlencode(params)
@@ -105,6 +139,7 @@ class BinanceClient:
         qs += f"&signature={sig}"
         s = await self._sess()
         async with s.get(self.FAPI + path + "?" + qs, proxy=self.proxy) as r:
+            self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
 
@@ -154,17 +189,25 @@ class YaoBiScanner:
         self._btc_atr_ts: float = 0.0
         self._market_bias = "NEUTRAL"
         self._market_bias_ts = 0.0
+        # 限制同时分析的币种数，避免 200 个币种 * 多个接口瞬间并发
+        # 触发 Binance 限频（Render 共享出口 IP 尤其敏感）。
+        self._scan_sem = asyncio.Semaphore(max(1, int(os.getenv("SCAN_CONCURRENCY", "3"))))
         self._load_state()
+
+    async def _analyze_limited(self, symbol: str):
+        async with self._scan_sem:
+            return await self._analyze(symbol)
 
     async def scan(self) -> list[dict]:
         try:
             symbols = await self._get_symbols()
         except Exception as e:
-            logger.error(f"failed to fetch symbols: {repr(e)}", exc_info=True)
+            # 不要用 repr(e)：aiohttp 的 RequestInfo 会带出 X-MBX-APIKEY 请求头
+            logger.error(f"failed to fetch symbols: {e}", exc_info=True)
             return []
 
         results = await asyncio.gather(
-            *[self._analyze(sym) for sym in symbols],
+            *[self._analyze_limited(sym) for sym in symbols],
             return_exceptions=True,
         )
 
