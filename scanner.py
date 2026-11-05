@@ -8,13 +8,27 @@ import hmac
 import hashlib
 from datetime import datetime, timezone
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import aiohttp
 
 from config import TOP30_BLACKLIST, STOCK_RELATED_BLACKLIST
 
 logger = logging.getLogger(__name__)
+
+
+def valid_proxy(value: str):
+    """只接受格式正确的 HTTP(S) 代理；占位符/错误端口直接忽略，避免启动即崩。"""
+    if not value:
+        return None
+    try:
+        p = urlparse(value)
+        if p.scheme not in ("http", "https") or not p.hostname:
+            return None
+        _ = p.port  # 端口不是数字时抛 ValueError
+        return value
+    except ValueError:
+        return None
 
 
 class BinanceClient:
@@ -24,7 +38,9 @@ class BinanceClient:
     def __init__(self, api_key: str, secret: str, proxy: str = ""):
         self.api_key = api_key
         self.secret = secret
-        self.proxy = proxy or None
+        self.proxy = valid_proxy(proxy)
+        if proxy and not self.proxy:
+            logger.warning("SCANNER_PROXY 格式无效（需要 http://host:port），已忽略并直连")
         self._session: Optional[aiohttp.ClientSession] = None
         self._tick_cache: dict[str, float] = {}
         self._step_cache: dict[str, float] = {}

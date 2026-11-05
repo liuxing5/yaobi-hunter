@@ -111,7 +111,7 @@ python -m tools.backtest_observe --days 1 --hours 4
 >
 > 这意味着 **Render 的共享 IP 不适合直接访问 Binance**。服务本身、Dashboard、认证和健康检查都正常，但扫描/交易会因 418 失败。可选方案：
 >
-> 1. 在 Render Environment 添加干净的 HTTP 代理：`SCANNER_PROXY=http://user:pass@host:port`（同时可用于 Telegram：`TG_PROXY`），然后重启服务。
+> 1. 在 Render Environment 添加干净的 HTTP 代理：`SCANNER_PROXY=http://<代理主机>:<端口>`（有认证则写 `http://user:pass@host:port`；**必须替换成真实地址，不能原样填占位符**；Telegram 同理用 `TG_PROXY`），然后重启服务。
 > 2. 改用新加坡/香港/日本等地的 VPS 直接运行（不经过 Render 出口 IP）。
 > 3. 使用 Render 专用出口 IP（Dedicated IPs，约 $100/月）——成本较高，不推荐。
 > 4. 等待 `Retry-After` 到期（本次约 9 小时）；但共享 IP 可能再次被封，不能保证稳定。
@@ -140,7 +140,7 @@ DASHBOARD_USER=admin
 DASHBOARD_PASSWORD=设置一个强密码
 ```
 
-`SCANNER_PROXY` / `TG_PROXY` 默认**留空**（不要设置成 `http://127.0.0.1:...`）。如果 Render 出口 IP 被 Binance 418，必须把 `SCANNER_PROXY` 设置为干净的 HTTP 代理。程序会自动读取 Render 注入的 `PORT` 并监听 `0.0.0.0`。
+`SCANNER_PROXY` / `TG_PROXY` 默认**留空**（不要设置成 `http://127.0.0.1:...`）。如果 Render 出口 IP 被 Binance 418，必须把 `SCANNER_PROXY` 设置为干净的 HTTP 代理。格式非法的值（例如占位符 `http://user:pass@host:port`）会被程序忽略并直连，避免启动时因端口解析失败而崩溃。程序会自动读取 Render 注入的 `PORT` 并监听 `0.0.0.0`。
 
 > 默认 `TRADE_ENABLED=False`，只报警不下单。确认运行正常后，在 Dashboard 的「参数」页开启自动交易。
 

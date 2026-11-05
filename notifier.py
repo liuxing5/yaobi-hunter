@@ -1,6 +1,20 @@
 """推送模块 v4 - Telegram + PushPlus(微信)"""
 import aiohttp, logging, os
+from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
+
+
+def _valid_proxy(value: str):
+    if not value:
+        return None
+    try:
+        p = urlparse(value)
+        if p.scheme not in ("http", "https") or not p.hostname:
+            return None
+        _ = p.port
+        return value
+    except ValueError:
+        return None
 
 
 class TelegramNotifier:
@@ -8,8 +22,8 @@ class TelegramNotifier:
         self.token   = token
         self.chat_id = chat_id
         self.base    = f"https://api.telegram.org/bot{token}"
-        # 未单独配置 TG_PROXY 时复用 SCANNER_PROXY；云端两者都为空则直连
-        self.proxy   = os.getenv("TG_PROXY") or os.getenv("SCANNER_PROXY") or None
+        # 未单独配置 TG_PROXY 时复用 SCANNER_PROXY；无效占位符自动忽略并直连
+        self.proxy   = _valid_proxy(os.getenv("TG_PROXY") or os.getenv("SCANNER_PROXY") or "")
 
     async def send_message(self, text: str):
         if not self.token or not self.chat_id:
