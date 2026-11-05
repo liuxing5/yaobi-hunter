@@ -89,12 +89,16 @@ class BinanceClient:
     async def _sess(self):
         if not self._session or self._session.closed:
             connector = aiohttp.TCPConnector(ssl=False)
+            # 公共行情接口不需要 API Key；带上 Key 既无必要，也会在 Key 被限频时
+            # 连带导致公开行情请求返回 418，因此只在签名接口按需附加。
             self._session = aiohttp.ClientSession(
-                headers={"X-MBX-APIKEY": self.api_key},
                 timeout=aiohttp.ClientTimeout(total=10),
                 connector=connector,
             )
         return self._session
+
+    def _signed_headers(self) -> dict:
+        return {"X-MBX-APIKEY": self.api_key}
 
     async def get(self, path: str, params: dict = None, base: str = None):
         await self._throttle()
@@ -112,7 +116,7 @@ class BinanceClient:
         sig = hmac.new(self.secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
         qs += f"&signature={sig}"
         s = await self._sess()
-        async with s.post(self.FAPI + path + "?" + qs, proxy=self.proxy) as r:
+        async with s.post(self.FAPI + path + "?" + qs, headers=self._signed_headers(), proxy=self.proxy) as r:
             self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
@@ -125,7 +129,7 @@ class BinanceClient:
         sig = hmac.new(self.secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
         qs += f"&signature={sig}"
         s = await self._sess()
-        async with s.delete(self.FAPI + path + "?" + qs, proxy=self.proxy) as r:
+        async with s.delete(self.FAPI + path + "?" + qs, headers=self._signed_headers(), proxy=self.proxy) as r:
             self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
@@ -138,7 +142,7 @@ class BinanceClient:
         sig = hmac.new(self.secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
         qs += f"&signature={sig}"
         s = await self._sess()
-        async with s.get(self.FAPI + path + "?" + qs, proxy=self.proxy) as r:
+        async with s.get(self.FAPI + path + "?" + qs, headers=self._signed_headers(), proxy=self.proxy) as r:
             self._check_ban_response(r)
             r.raise_for_status()
             return await r.json()
