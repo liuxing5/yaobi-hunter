@@ -56,16 +56,28 @@ def create_app(config, scanner, trader):
         return _json({"ok": True, "service": "yaobi-hunter"})
 
     async def handle_binance_diag(req):
-        """不带 API Key 探测 Binance 可达性，用于区分 IP 封禁与密钥问题。"""
+        """不带 API Key 探测 Binance 可达性，用于区分 IP 封禁与密钥问题。
+
+        可选：?path=/fapi/v1/ticker/24hr&symbol=BTCUSDT&interval=1m&limit=2
+        """
         try:
+            path = req.query.get("path", "/fapi/v1/time")
+            if not path.startswith("/fapi/v1/") or ".." in path or "//" in path:
+                return _json({"ok": False, "error": "invalid path"}, 400)
+            params = {
+                k: req.query[k]
+                for k in ("symbol", "interval", "limit")
+                if k in req.query
+            }
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession(timeout=timeout) as s:
-                async with s.get("https://fapi.binance.com/fapi/v1/time") as r:
-                    body = (await r.text())[:300]
+                async with s.get("https://fapi.binance.com" + path, params=params or None) as r:
+                    body = (await r.text())[:500]
                     return _json({
                         "ok": r.status == 200,
                         "status": r.status,
                         "retry_after": r.headers.get("Retry-After"),
+                        "path": path,
                         "body": body,
                     })
         except Exception as e:
